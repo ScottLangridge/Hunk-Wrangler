@@ -1,12 +1,11 @@
 import re
-from difflib import ndiff
 
 from diff_components import Diff
 
 
 def main():
-    SOURCE_DIFF_NAME = 'my_patch.patch'
-    OUTPUT_DIFF_NAME = 'pruned_diff.patch'
+    SOURCE_DIFF_NAME = 'ss_whs_patch.patch'
+    OUTPUT_DIFF_NAME = 'ss_pruned_diff.patch'
 
     with open("diffs/" + SOURCE_DIFF_NAME, 'r', encoding='utf-8') as f:
         patch_text = f.read()
@@ -35,23 +34,33 @@ def main():
     with open("diffs/" + OUTPUT_DIFF_NAME, 'w', encoding='utf-8') as f:
         f.write(str_pruned_diff)
 
-    print(f'{len(pruned_diff)}/{len(diff.full_text)} ({len(pruned_diff) / len(diff.full_text) * 100:.2f}% original size)')
+    print(
+        f'{len(pruned_diff)}/{len(diff.full_text)} ({len(pruned_diff) / len(diff.full_text) * 100:.2f}% original size)')
 
 
 def include_hunk(hunk):
+    if len(hunk.removed) == len(hunk.added):
+        changes = zip(hunk.removed, hunk.added)
+        for change in changes:
+            if include_change(*change):
+                return True
+        return False
+
+    else:
+        return True
+
+
+def include_change(before, after):
     # Warehouse changed for workspace 1:1
-    if len(hunk.removed) == 1 and len(hunk.added) == 1:
-        char_diff = ndiff(hunk.removed[0].strip("-+ "), hunk.added[0].strip("-+ "))
-        pruned_char_diff = filter(lambda i: not i.startswith(' '), char_diff)
-        if ''.join(pruned_char_diff).replace('+ a+ r+ e+ h+ u- r- k- p- a- c', '') == '':
+    replacement_pairs = [['workspace', 'warehouse'], ['wks', 'whs']]
+    for pair in replacement_pairs:
+        if before.lower().strip("-+").replace(pair[0], pair[1]) == after.lower().strip("-+"):
             return False
 
-    # '_url(@workspace' --> '_url(@warehouse, @workspace'
-    if len(hunk.removed) == 1 and len(hunk.added) == 1:
-        wks_url = re.compile(r"_(path|url)( |\()@?workspace")
-        whs_url = re.compile(r"_(path|url)( |\()@?warehouse, @?workspace")
-        if len(wks_url.findall(hunk.removed[0])) == 1 and len(whs_url.findall(hunk.added[0])) == 1:
-            return False
+    wks_url = re.compile(r"_(path|url)( |\()@?workspace")
+    whs_url = re.compile(r"_(path|url)( |\()@?warehouse, @?workspace")
+    if len(wks_url.findall(before)) == 1 and len(whs_url.findall(after)) == 1:
+        return False
 
     return True
 
